@@ -76,3 +76,6 @@ PKGDB2_EMAIL_SMTP_SERVER = 'localhost'
 #PKGDB2_FAS_URL = 'https://admin.fedoraproject.org/accounts'
 #PKGDB2_FAS_USER = 'pingou'
 #PKGDB2_FAS_PASSWORD = 'figure empire demain'
+
+# Email address to send the tracebacks to
+MAIL_ADMIN = 'pingou@pingoured.fr'
