@@ -36,8 +36,8 @@ from mock import patch
 sys.path.insert(0, os.path.join(os.path.dirname(
     os.path.abspath(__file__)), '..'))
 
-import pkgdb
-from pkgdb.lib import model
+import pkgdb2
+from pkgdb2.lib import model
 from tests import (Modeltests, FakeFasUser, FakeFasUserAdmin,
                    create_package_acl, user_set)
 
@@ -49,15 +49,15 @@ class FlaskUiCollectionsTest(Modeltests):
         """ Set up the environnment, ran before every tests. """
         super(FlaskUiCollectionsTest, self).setUp()
 
-        pkgdb.APP.config['TESTING'] = True
-        pkgdb.SESSION = self.session
-        pkgdb.ui.SESSION = self.session
-        pkgdb.ui.acls.SESSION = self.session
-        pkgdb.ui.admin.SESSION = self.session
-        pkgdb.ui.collections.SESSION = self.session
-        pkgdb.ui.packagers.SESSION = self.session
-        pkgdb.ui.packages.SESSION = self.session
-        self.app = pkgdb.APP.test_client()
+        pkgdb2.APP.config['TESTING'] = True
+        pkgdb2.SESSION = self.session
+        pkgdb2.ui.SESSION = self.session
+        pkgdb2.ui.acls.SESSION = self.session
+        pkgdb2.ui.admin.SESSION = self.session
+        pkgdb2.ui.collections.SESSION = self.session
+        pkgdb2.ui.packagers.SESSION = self.session
+        pkgdb2.ui.packages.SESSION = self.session
+        self.app = pkgdb2.APP.test_client()
 
     def test_list_collections(self):
         """ Test the list_collections function. """
@@ -83,19 +83,19 @@ class FlaskUiCollectionsTest(Modeltests):
         self.assertTrue('<li class="errors">No collection of this name '
                         'found.</li>' in output.data)
 
-    @patch('pkgdb.is_admin')
+    @patch('pkgdb2.is_admin')
     def test_collection_new(self, login_func):
         """ Test the collection_new function. """
-        login_func.return_value=None
+        login_func.return_value = None
         create_package_acl(self.session)
 
         user = FakeFasUser()
-        with user_set(pkgdb.APP, user):
+        with user_set(pkgdb2.APP, user):
             output = self.app.get('/new/collection/')
             self.assertEqual(output.status_code, 302)
 
         user = FakeFasUserAdmin()
-        with user_set(pkgdb.APP, user):
+        with user_set(pkgdb2.APP, user):
             output = self.app.get('/new/collection/')
             self.assertEqual(output.status_code, 200)
             self.assertTrue(
@@ -110,10 +110,6 @@ class FlaskUiCollectionsTest(Modeltests):
                 'collection_name': '',
                 'collection_version': '',
                 'collection_status': '',
-                'collection_publishURLTemplate': '',
-                'collection_pendingURLTemplate': '',
-                'collection_summary': '',
-                'collection_description': '',
                 'collection_branchname': '',
                 'collection_distTag': '',
                 'collection_git_branch_name': '',
@@ -125,10 +121,10 @@ class FlaskUiCollectionsTest(Modeltests):
             self.assertEqual(
                 output.data.count(
                     '<td class="errors">This field is required.</td>'
-                ), 5)
+                ), 6)
 
         user = FakeFasUserAdmin()
-        with user_set(pkgdb.APP, user):
+        with user_set(pkgdb2.APP, user):
             output = self.app.get('/new/collection/')
             self.assertEqual(output.status_code, 200)
             self.assertTrue(
@@ -143,13 +139,10 @@ class FlaskUiCollectionsTest(Modeltests):
                 'collection_name': 'Fedora',
                 'collection_version': '19',
                 'collection_status': 'Active',
-                'collection_publishURLTemplate': '',
-                'collection_pendingURLTemplate': '',
-                'collection_summary': 'Fedora 19 release',
-                'collection_description': 'Fedora 19 release',
                 'collection_branchname': 'f19',
                 'collection_distTag': '.fc19',
                 'collection_git_branch_name': 'f19',
+                'collection_kojiname': 'f19',
                 'csrf_token': csrf_token,
             }
 
@@ -160,19 +153,19 @@ class FlaskUiCollectionsTest(Modeltests):
                 '<li class="message">Collection &#34;f19&#34; created</li>'
                 in output.data)
 
-    @patch('pkgdb.is_admin')
+    @patch('pkgdb2.is_admin')
     def test_collection_edit(self, login_func):
         """ Test the collection_edit function. """
-        login_func.return_value=None
+        login_func.return_value = None
         create_package_acl(self.session)
 
         user = FakeFasUser()
-        with user_set(pkgdb.APP, user):
+        with user_set(pkgdb2.APP, user):
             output = self.app.get('/collection/devel/edit')
             self.assertEqual(output.status_code, 302)
 
         user = FakeFasUserAdmin()
-        with user_set(pkgdb.APP, user):
+        with user_set(pkgdb2.APP, user):
             output = self.app.get('/collection/devel/edit')
             self.assertEqual(output.status_code, 200)
             self.assertTrue(
@@ -181,7 +174,7 @@ class FlaskUiCollectionsTest(Modeltests):
                 '<input id="csrf_token" name="csrf_token"' in output.data)
 
         user = FakeFasUserAdmin()
-        with user_set(pkgdb.APP, user):
+        with user_set(pkgdb2.APP, user):
             output = self.app.get('/collection/random/edit')
 
             self.assertEqual(output.status_code, 200)
@@ -190,7 +183,7 @@ class FlaskUiCollectionsTest(Modeltests):
                 in output.data)
 
         user = FakeFasUserAdmin()
-        with user_set(pkgdb.APP, user):
+        with user_set(pkgdb2.APP, user):
             output = self.app.get('/collection/F-17/edit')
             self.assertEqual(output.status_code, 200)
             self.assertTrue(
@@ -201,25 +194,20 @@ class FlaskUiCollectionsTest(Modeltests):
             csrf_token = output.data.split(
                 'name="csrf_token" type="hidden" value="')[1].split('">')[0]
 
-            collections = model.Collection.all(self.session)
+            collections = model.Collection.by_name(self.session, 'F-17')
             self.assertEqual(
-                "Collection(u'Fedora', u'17', u'Active', u'toshio', "
-                "publishurltemplate=None, pendingurltemplate=None,"
-                " summary=u'Fedora 17 release', description=None)",
-                collections[0].__repr__())
-            self.assertEqual(collections[0].branchname, 'F-17')
+                "Collection(u'Fedora', u'17', u'Active', owner:u'toshio')",
+                collections.__repr__())
+            self.assertEqual(collections.branchname, 'F-17')
 
             data = {
                 'collection_name': 'Fedora',
                 'collection_version': '17',
                 'collection_status': 'Active',
-                'collection_publishURLTemplate': '',
-                'collection_pendingURLTemplate': '',
-                'collection_summary': 'Fedora release 17',
-                'collection_description': '',
                 'collection_branchname': 'F-17',
                 'collection_distTag': '.fc17',
                 'collection_git_branch_name': 'f17',
+                'collection_kojiname': 'f17',
                 'csrf_token': csrf_token,
             }
 
@@ -230,13 +218,11 @@ class FlaskUiCollectionsTest(Modeltests):
                 '<li class="message">Collection &#34;F-17&#34; edited</li>'
                 in output.data)
 
-            collections = model.Collection.all(self.session)
+            collections = model.Collection.by_name(self.session, 'F-17')
             self.assertEqual(
-                "Collection(u'Fedora', u'17', u'Active', u'toshio', "
-                "publishurltemplate=None, pendingurltemplate=None,"
-                " summary=u'Fedora release 17', description=None)",
-                collections[0].__repr__())
-            self.assertEqual(collections[0].branchname, 'F-17')
+                "Collection(u'Fedora', u'17', u'Active', owner:u'toshio')",
+                collections.__repr__())
+            self.assertEqual(collections.branchname, 'F-17')
 
 
 if __name__ == '__main__':

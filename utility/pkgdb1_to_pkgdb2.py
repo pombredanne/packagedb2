@@ -40,15 +40,18 @@ import sqlalchemy as sa
 import sqlalchemy.orm as orm
 import sqlalchemy.exc
 
+from progressbar import Bar, ETA, Percentage, ProgressBar, RotatingMarker
+
+
 sys.path.insert(0, os.path.join(os.path.dirname(
     os.path.abspath(__file__)), '..'))
 
-import pkgdb.lib
-from pkgdb.lib import model
+import pkgdb2.lib
+from pkgdb2.lib import model
 
 
-DB_URL_PKGDB1= ''
-DB_URL_PKGDB2= ''
+DB_URL_PKGDB1 = ''
+DB_URL_PKGDB2 = ''
 
 
 STATUS = {
@@ -130,19 +133,16 @@ def convert_collections(pkg1_sess, pkg2_sess):
     cnt = 0
     for collect in pkg1_sess.query(P1Collection).all():
         branch = pkg1_sess.query(P1Branch).filter(
-            P1Branch.collectionid==collect.id).one()
+            P1Branch.collectionid == collect.id).one()
         new_collection = model.Collection(
             name=collect.name,
             version=collect.version,
             status=STATUS[collect.statuscode],
             owner=collect.owner,
-            publishURLTemplate=collect.publishurltemplate,
-            pendingURLTemplate=collect.pendingurltemplate,
-            summary=collect.summary,
-            description=collect.description,
             branchname=branch.branchname,
             distTag=branch.disttag,
             git_branch_name=branch.gitbranchname,
+            koji_name=collect.koji_name,
         )
         new_collection.id = collect.id
         pkg2_sess.add(new_collection)
@@ -161,6 +161,7 @@ def convert_packages(pkg1_sess, pkg2_sess):
         new_pkg = model.Package(
             name=pkg.name,
             summary=pkg.summary,
+            description=pkg.description,
             status=STATUS[pkg.statuscode],
             shouldopen=pkg.shouldopen,
             review_url=pkg.reviewurl,
@@ -177,6 +178,8 @@ def convert_packagelisting(pkg1_sess, pkg2_sess):
     ''' Convert the PackageListing from pkgdb1 to pkgdb2.
     '''
     cnt = 0
+    failed_pkg = set()
+    failed_pkglist = set()
     for pkg in pkg1_sess.query(P1Packagelisting).all():
         poc = pkg.owner
         if poc == 'perl-sig':
@@ -192,7 +195,7 @@ def convert_packagelisting(pkg1_sess, pkg2_sess):
         pkg2_sess.add(new_pkglist)
         if new_pkglist.point_of_contact != 'orphan':
             acls = ['watchcommits', 'watchbugzilla', 'commit', 'approveacls']
-            if new_pkglist.point_of_contact == 'perl-sig':
+            if new_pkglist.point_of_contact == 'group::perl-sig':
                 acls = ['watchcommits', 'watchbugzilla', 'commit']
             for acl in acls:
                 new_pkglistacl = model.PackageListingAcl(
@@ -202,11 +205,19 @@ def convert_packagelisting(pkg1_sess, pkg2_sess):
                     status='Approved'
                 )
                 pkg2_sess.add(new_pkglistacl)
-        cnt += 1
-        if cnt % 10000 == 0:
+        try:
             pkg2_sess.commit()
+        except Exception, err:
+            pkg2_sess.rollback()
+            failed_pkg.add(str(pkg.packageid))
+            failed_pkglist.add(str(new_pkglist.id))
+        cnt += 1
     pkg2_sess.commit()
     print '%s Package listing added' % cnt
+    print '%s packages failed' % len(failed_pkg)
+    print ', '.join(failed_pkg)
+    print '%s package listing failed' % len(failed_pkglist)
+    print ', '.join(sorted(failed_pkglist))
 
 
 def convert_packagelistingacl(pkg1_sess, pkg2_sess):
@@ -214,35 +225,31 @@ def convert_packagelistingacl(pkg1_sess, pkg2_sess):
     '''
     cnt = 0
     total = pkg1_sess.query(P1PersonPackagelistingAcl).count()
-    page = 0
-    page_cnt = total / 10
     done = set()
-    while page < 10:
-        print page, cnt, page * page_cnt, (page + 1) * page_cnt, total
-        for pkg in pkg1_sess.query(P1PersonPackagelistingAcl
-                ).offset(
-                    page * page_cnt
-                ).limit(
-                    (page + 1) * page_cnt
-                ).all():
-            if pkg.acl in ('build', 'checkout'):
-                continue
-            person = pkg1_sess.query(P1PersonPackagelisting).filter(
-                P1PersonPackagelisting.id==pkg.personpackagelistingid
-            ).one()
-            new_pkglistacl = model.PackageListingAcl(
-                fas_name=person.username,
-                packagelisting_id=person.packagelistingid,
-                acl=pkg.acl,
-                status=STATUS[pkg.statuscode]
-            )
-            try:
-                pkg2_sess.add(new_pkglistacl)
-                pkg2_sess.commit()
-            except sqlalchemy.exc.IntegrityError:
-                pkg2_sess.rollback()
-            cnt += 1
-        page += 1
+    widgets = ['ACLs: ', Percentage(), ' ', Bar(marker=RotatingMarker()),
+               ' ', ETA()]
+    pbar = ProgressBar(widgets=widgets, maxval=total).start()
+    for pkg in pkg1_sess.query(P1PersonPackagelistingAcl).all():
+        if pkg.acl in ('build', 'checkout'):
+            continue
+        person = pkg1_sess.query(P1PersonPackagelisting).filter(
+            P1PersonPackagelisting.id == pkg.personpackagelistingid
+        ).one()
+        new_pkglistacl = model.PackageListingAcl(
+            fas_name=person.username,
+            packagelisting_id=person.packagelistingid,
+            acl=pkg.acl,
+            status=STATUS[pkg.statuscode]
+        )
+        try:
+            pkg2_sess.add(new_pkglistacl)
+            pkg2_sess.commit()
+        except sqlalchemy.exc.IntegrityError, err:
+            #print err
+            pkg2_sess.rollback()
+        cnt += 1
+        pbar.update(cnt)
+    pbar.finish()
     pkg2_sess.commit()
     print '%s Package listing ACLs added' % cnt
 
@@ -252,7 +259,7 @@ def main(db_url_pkgdb1, db_url_pkgdb2):
     from one database model to the other.
     '''
     pkg1_sess = create_session(db_url_pkgdb1)
-    pkg2_sess = pkgdb.lib.create_session(db_url_pkgdb2)
+    pkg2_sess = pkgdb2.lib.create_session(db_url_pkgdb2)
     convert_collections(pkg1_sess, pkg2_sess)
     convert_packages(pkg1_sess, pkg2_sess)
     convert_packagelisting(pkg1_sess, pkg2_sess)
@@ -268,5 +275,3 @@ if __name__ == '__main__':
         sys.exit(1)
 
     main(DB_URL_PKGDB1, DB_URL_PKGDB2)
-
-

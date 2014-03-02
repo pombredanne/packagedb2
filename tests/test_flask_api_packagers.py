@@ -34,8 +34,8 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(
     os.path.abspath(__file__)), '..'))
 
-import pkgdb
-from pkgdb.lib import model
+import pkgdb2
+from pkgdb2.lib import model
 from tests import Modeltests, FakeFasUser, create_package_acl, user_set
 
 
@@ -46,10 +46,10 @@ class FlaskApiPackagersTest(Modeltests):
         """ Set up the environnment, ran before every tests. """
         super(FlaskApiPackagersTest, self).setUp()
 
-        pkgdb.APP.config['TESTING'] = True
-        pkgdb.SESSION = self.session
-        pkgdb.api.packagers.SESSION = self.session
-        self.app = pkgdb.APP.test_client()
+        pkgdb2.APP.config['TESTING'] = True
+        pkgdb2.SESSION = self.session
+        pkgdb2.api.packagers.SESSION = self.session
+        self.app = pkgdb2.APP.test_client()
 
     def test_packager_acl(self):
         """ Test the api_packager_acl function.  """
@@ -62,28 +62,31 @@ class FlaskApiPackagersTest(Modeltests):
             {
                 "output": "notok",
                 "error": "Invalid request",
+                "page": 1
             }
         )
 
         output = self.app.get('/api/packager/acl/pingou/')
-        self.assertEqual(output.status_code, 200)
+        self.assertEqual(output.status_code, 404)
         data = json.loads(output.data)
         self.assertEqual(
             data,
             {
-                "output": "ok",
-                "acls": [],
+                "output": "notok",
+                "error": 'No ACL found for this user',
+                "page": 1
             }
         )
 
         output = self.app.get('/api/packager/acl/?packagername=pingou')
-        self.assertEqual(output.status_code, 200)
+        self.assertEqual(output.status_code, 404)
         data = json.loads(output.data)
         self.assertEqual(
             data,
             {
-                "output": "ok",
-                "acls": [],
+                "output": "notok",
+                "error": 'No ACL found for this user',
+                "page": 1
             }
         )
 
@@ -93,19 +96,23 @@ class FlaskApiPackagersTest(Modeltests):
         self.assertEqual(output.status_code, 200)
         output = json.loads(output.data)
         self.assertEqual(output.keys(),
-                         ['output', 'acls'])
+                         ['page_total', 'output', 'acls', 'page'])
         self.assertEqual(output['output'], 'ok')
+        self.assertEqual(output['page_total'], 0)
         self.assertEqual(len(output['acls']), 5)
         self.assertEqual(set(output['acls'][0].keys()),
                          set(['status', 'fas_name', 'packagelist', 'acl']))
         self.assertEqual(set(output['acls'][0]['packagelist'].keys()),
-                         set(['package', 'collection', 'point_of_contact']))
-        self.assertEqual(set(output['acls'][0]['packagelist']['package'].keys()),
-                         set([u'upstream_url', u'name', u'review_url',
-                              u'status', u'creation_date', u'summary']))
-        self.assertEqual(set(output['acls'][0]['packagelist']['collection'].keys()),
-                         set([u'pendingurltemplate', u'publishurltemplate',
-                              u'branchname', u'version', u'name']))
+                         set(['package', 'status_change', 'collection',
+                              'point_of_contact', 'status']))
+        self.assertEqual(
+            set(output['acls'][0]['packagelist']['package'].keys()),
+            set([u'upstream_url', u'name', u'review_url',
+                 u'status', u'creation_date', u'summary',
+                 u'description']))
+        self.assertEqual(
+            set(output['acls'][0]['packagelist']['collection'].keys()),
+            set([u'branchname', u'version', u'name', u'status']))
         self.assertEqual(
             output['acls'][0]['packagelist']['package']['name'], 'guake')
         self.assertEqual(
@@ -116,31 +123,32 @@ class FlaskApiPackagersTest(Modeltests):
         self.assertEqual(output.status_code, 200)
         output = json.loads(output.data)
         self.assertEqual(output.keys(),
-                         ['output', 'acls'])
+                         ['page_total', 'output', 'acls', 'page'])
         self.assertEqual(output['output'], 'ok')
+        self.assertEqual(output['page_total'], 0)
         self.assertEqual(len(output['acls']), 5)
         self.assertEqual(set(output['acls'][0].keys()),
                          set(['status', 'fas_name', 'packagelist', 'acl']))
         self.assertEqual(set(output['acls'][0]['packagelist'].keys()),
-                         set(['package', 'collection', 'point_of_contact']))
+                         set(['package', 'status_change', 'collection',
+                              'point_of_contact', 'status']))
         self.assertEqual(
             output['acls'][0]['packagelist']['package']['name'], 'guake')
         self.assertEqual(
             output['acls'][0]['packagelist']['collection']['branchname'],
             'F-18')
 
-
     def test_packager_list(self):
         """ Test the api_packager_list function.  """
 
         output = self.app.get('/api/packagers/')
-        self.assertEqual(output.status_code, 500)
+        self.assertEqual(output.status_code, 200)
         data = json.loads(output.data)
         self.assertEqual(
             data,
             {
-                "output": "notok",
-                "error": "Invalid request",
+                "output": "ok",
+                "packagers": [],
             }
         )
 
@@ -165,6 +173,83 @@ class FlaskApiPackagersTest(Modeltests):
         self.assertEqual(output['output'], 'ok')
         self.assertEqual(len(output['packagers']), 1)
         self.assertEqual(output['packagers'][0], 'pingou')
+
+    def test_packager_stats(self):
+        """ Test the api_packager_stats function.  """
+
+        output = self.app.get('/api/packager/stats/')
+        self.assertEqual(output.status_code, 500)
+        data = json.loads(output.data)
+        self.assertEqual(
+            data,
+            {
+                "output": "notok",
+                "error": "Invalid request",
+            }
+        )
+
+        output = self.app.get('/api/packager/stats/pingou/')
+        self.assertEqual(output.status_code, 200)
+        data = json.loads(output.data)
+        self.assertEqual(
+            data,
+            {'output': 'ok'}
+        )
+
+        output = self.app.get('/api/packager/stats/?packagername=pingou')
+        self.assertEqual(output.status_code, 200)
+        data = json.loads(output.data)
+        self.assertEqual(
+            data,
+            {'output': 'ok'}
+        )
+
+        create_package_acl(self.session)
+
+        output = self.app.get('/api/packager/stats/pingou/')
+        self.assertEqual(output.status_code, 200)
+        output = json.loads(output.data)
+        self.assertEqual(output.keys(),
+                         ['F-18', 'output', 'devel', 'el6', 'F-17'])
+        self.assertEqual(output['output'], 'ok')
+        self.assertEqual(output['el6']['point of contact'], 0)
+        self.assertEqual(output['el6']['co-maintainer'], 0)
+        self.assertEqual(output['F-17']['point of contact'], 0)
+        self.assertEqual(output['F-17']['co-maintainer'], 0)
+        self.assertEqual(output['F-18']['point of contact'], 1)
+        self.assertEqual(output['F-18']['co-maintainer'], 0)
+        self.assertEqual(output['devel']['point of contact'], 1)
+        self.assertEqual(output['devel']['co-maintainer'], 0)
+
+        output = self.app.get('/api/packager/stats/?packagername=pingou')
+        self.assertEqual(output.status_code, 200)
+        output = json.loads(output.data)
+        self.assertEqual(output.keys(),
+                         ['F-18', 'output', 'devel', 'el6', 'F-17'])
+        self.assertEqual(output['output'], 'ok')
+        self.assertEqual(output['el6']['point of contact'], 0)
+        self.assertEqual(output['el6']['co-maintainer'], 0)
+        self.assertEqual(output['F-17']['point of contact'], 0)
+        self.assertEqual(output['F-17']['co-maintainer'], 0)
+        self.assertEqual(output['F-18']['point of contact'], 1)
+        self.assertEqual(output['F-18']['co-maintainer'], 0)
+        self.assertEqual(output['devel']['point of contact'], 1)
+        self.assertEqual(output['devel']['co-maintainer'], 0)
+
+        output = self.app.get('/api/packager/stats/?packagername=random')
+        self.assertEqual(output.status_code, 200)
+        output = json.loads(output.data)
+        self.assertEqual(output.keys(),
+                         ['F-18', 'output', 'devel', 'el6', 'F-17'])
+        self.assertEqual(output['output'], 'ok')
+        self.assertEqual(output['el6']['point of contact'], 0)
+        self.assertEqual(output['el6']['co-maintainer'], 0)
+        self.assertEqual(output['F-17']['point of contact'], 0)
+        self.assertEqual(output['F-17']['co-maintainer'], 0)
+        self.assertEqual(output['F-18']['point of contact'], 0)
+        self.assertEqual(output['F-18']['co-maintainer'], 0)
+        self.assertEqual(output['devel']['point of contact'], 0)
+        self.assertEqual(output['devel']['co-maintainer'], 0)
 
 
 if __name__ == '__main__':

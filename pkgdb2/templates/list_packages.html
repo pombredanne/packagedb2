@@ -1,0 +1,98 @@
+{% extends "master.html" %}
+
+{% block title %} {{ super() }} {% endblock %}
+
+{%block tag %}packages{% endblock %}
+
+
+
+{% set options = True %}
+{%block options %}
+<form action="{{ url_for('.%s' % origin) }}" method="get">
+    Restrict to branch: <input type="text" name="branches" />
+    {% if origin == 'list_packages' %}
+    Restrict to status: <input type="text" name="status" value="Approved" />
+    {% elif origin == 'list_orphaned' %}
+    Restrict to status: <input type="text" name="status" value="Orphaned" />
+    {% elif origin == 'list_retired' %}
+    Restrict to status: <input type="text" name="status" value="Retired" />
+    {% endif %}
+    Restrict to owner: <input type="text" name="owner" />
+    <input type="submit" class="submit positive button" value="filter">
+</form>
+{% if is_admin %}
+<ul>
+    <li>
+        <a href="{{ url_for('.package_new') }}">
+            <input type="submit" value="New package"/>
+        </a>
+    </li>
+</ul>
+{% endif %}
+{% endblock %}
+
+{% block content %}
+
+<h1>Search packages</h1>
+
+{% if origin == 'list_packages' %}
+<p>See the list of <a href="{{ url_for('.list_orphaned') }}">orphaned</a>
+or <a href="{{ url_for('.list_retired') }}">retired</a> packages</p>
+{% elif origin == 'list_orphaned' %}
+<p>See the list of <a href="{{ url_for('.list_packages') }}">active</a>
+or <a href="{{ url_for('.list_retired') }}">retired</a> packages</p>
+{% elif origin == 'list_retired' %}
+<p>See the list of <a href="{{ url_for('.list_packages') }}">active</a>
+or <a href="{{ url_for('.list_orphaned') }}">orphaned</a> packages</p>
+{% endif %}
+
+<p>{{ packages_count }} packages found</p>
+
+{% if total_page %}
+<table>
+    <tr>
+        <td>
+        {% if page > 1%}
+            <a href="{{ url_for('.%s' % origin, motif=motif) }}?page={{page - 1}}">
+                &lt; Previous
+            </a>
+        {% else %}
+            &lt; Previous
+        {% endif %}
+        </td>
+        <td>{{ page }} / {{ total_page }}</td>
+        <td>
+            {% if page < total_page %}
+            <a href="{{ url_for('.%s' % origin, motif=motif) }}?page={{page + 1}}">
+                Next &gt;
+            </a>
+            {% else %}
+            Next >
+            {% endif %}
+        </td>
+    </tr>
+</table>
+{% endif %}
+
+<ul>
+{% for pkg in packages %}
+    <li>
+    <a href="{{url_for('.package_info', package=pkg.name)}}">
+            {{ pkg.name }}</a>
+    -- {{ pkg.summary }}
+    (
+    {% for listing in pkg.listings %} {% if listing.collection.status != 'EOL' %}
+        {% if origin == 'list_packages' and listing.status == 'Approved' %}
+            {{ listing.collection.branchname }}
+        {% elif origin == 'list_retired' and listing.status == 'Retired' %}
+            {{ listing.collection.branchname }}
+        {% elif origin == 'list_orphaned' and listing.status == 'Orphaned' %}
+            {{ listing.collection.branchname }}
+        {% endif %}
+    {% endif %}{% endfor %}
+    )
+    </li>
+{% endfor %}
+</ul>
+
+{% endblock %}

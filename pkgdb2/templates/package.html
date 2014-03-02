@@ -1,0 +1,195 @@
+{% extends "master.html" %}
+
+{% block title %} {{ package.name }} | PkgDB {% endblock %}
+
+{%block tag %}packages{% endblock %}
+
+{% if g.fas_user %}
+{% set options = True %}
+{%block options %}
+<ul>
+    <li>
+        <a href="{{ url_for('.watch_package',
+                 package=package.name) }}">
+            <input type="submit" value="Watch package"/>
+        </a>
+    </li>
+    <li>
+        <a href="{{ url_for('.comaintain_package',
+                 package=package.name) }}">
+            <input type="submit" value="Apply for co-maintainer"/>
+        </a>
+    </li>
+    <li>
+        <a href="{{ url_for('.request_acl',
+                 package=package.name) }}">
+            <input type="submit" value="Request ACLs"/>
+        </a>
+    </li>
+    {% if is_admin or is_poc %}
+    <li>
+        <a href="{{ url_for('.package_give',
+                 package=package.name) }}">
+            <input type="submit" value="Give package"/>
+        </a>
+    </li>
+    {% endif %}
+</ul>
+{% endblock %}
+{% endif %}
+
+{% block content %}
+
+<h1 property="doap:name">{{ package.name }}</h1>
+
+<p property="doap:shortdesc">{{ package.summary }}</p>
+
+{% if package.description %}
+<p id="description" property="doap:description">{{ package.description }}</p>
+{% endif %}
+
+<ul id="actions">
+    <li>
+        <a href="http://koji.fedoraproject.org/koji/search?type=package&match=glob&terms={{ package.name }}"
+        class="koji">
+        Builds status</a>
+    </li>
+    <li>
+        <a href="https://admin.fedoraproject.org/updates/{{ package.name }}"
+        class="bodhi">
+        Updates status</a>
+    </li>
+    <li>
+        <a href="http://pkgs.fedoraproject.org/cgit/{{ package.name }}.git/"
+        class="cvs">
+        Package source</a>
+    </li>
+    <li>
+        <a href="https://apps.fedoraproject.org/packages/{{ package.name }}/bugs"
+        class="bugz">
+        Bugs reports</a>
+    </li>
+    <li>
+    {% if package.review_url %}
+        <a href="{{ package.review_url }}" class="bugz">
+        Package review</a>
+    {% else %}
+        Package review unknown
+    {% endif %}
+    </li>
+
+</ul>
+
+<table id="metainfo">
+    <tr>
+        <th>Status</th>
+        <td>{{ package.status }}</td>
+    </tr>
+    <tr>
+        <th>Created on</th>
+        <td property="doap:created">{{ package.date_created.strftime('%Y-%m-%d') }}</td>
+    </tr>
+</table>
+
+{% for pkg in package_acl %}
+    <h3>{{ pkg['collection'] }}</h3>
+    <p class="owner">
+        Point of contact:
+        <a href="{{ url_for('.packager_info',
+                            packager=pkg['point_of_contact']) }}">
+            {{ pkg['point_of_contact'] }}
+        </a>
+        {% if pkg['status'] == 'Retired' %}
+            -- Package retired
+        {% elif is_admin or pkg['status'] == 'orphan' or pkg['point_of_contact'] == g.fas_user.username  %}
+        --
+        {% if pkg['status'] == 'Orphaned' %}
+        <a href="{{ url_for('.package_take',
+                            package=package.name,
+                            collection=pkg['branchname']) }}">
+            request
+        <a href="{{ url_for('.package_retire',
+                            package=package.name,
+                            collection=pkg['branchname']) }}">
+            -- retire
+        </a>
+        {% elif is_admin or pkg['point_of_contact'] == g.fas_user.username %}
+        <a href="{{ url_for('.package_orphan',
+                            package=package.name,
+                            collection=pkg['branchname']) }}">
+            leave
+        </a>
+        {% endif %}
+        {% endif %}
+    </p>
+    <table class="acls">
+        {% for maintainer in pkg['acls'] %}
+        <tr>
+            <td>
+                <a href="{{ url_for('.packager_info',
+                                    packager=maintainer) }}">
+                {{ maintainer }}
+                </a>
+            </td>
+            {% for acl in pkg['acls'][maintainer] | sort(reverse=True) %}
+                {% if acl['status'] %}
+                <td> {{ acl['acl'] }}</td>
+                <td>
+                    <img src="{{ url_for('static',
+                                         filename='%s.png' % acl['status']) }}"
+                     title="{{ acl['status'] }}" alt="{{ acl['status'] }}"/ >
+                </td>
+                {% else %}
+                <td></td>
+                <td></td>
+                {% endif %}
+            {% endfor %}
+            {% if maintainer == g.fas_user.username or
+                    pkg['branchname'] in branch_admin %}
+            {% if pkg['acls'][maintainer] %}
+                <td>
+                    <a href="{{ url_for('.update_acl',
+                        package=package.name,
+                        user=maintainer,
+                        branch=pkg['branchname']) }}">
+                        <input type="submit" value="Update ACLs"/>
+                    </a>
+                </td>
+            {% endif %}
+            {% endif %}
+        </tr>
+        {% endfor %}
+    </table>
+{% endfor %}
+
+
+<table id="legend">
+    <tr>
+        <th>Approved:</th>
+        <td>
+            <img src="{{ url_for('static', filename='Approved.png') }}"
+                title="Approved" alt="Approved"/ >
+        </td>
+        <th>Awaiting Review:</th>
+        <td>
+            <img src="{{ url_for('static', filename='Awaiting Review.png') }}"
+                title="Awaiting Review" alt="Awaiting Review"/ >
+        </td>
+        <th>Denied:</th>
+        <td>
+            <img src="{{ url_for('static', filename='Denied.png') }}"
+                title="Denied" alt="Denied"/ >
+        </td>
+        <th>Obsolete:</th>
+        <td>
+            <img src="{{ url_for('static', filename='Obsolete.png') }}"
+                title="Obsolete" alt="Obsolete"/ >
+        </td>
+        <th>Removed:</th>
+        <td>
+            <img src="{{ url_for('static', filename='Removed.png') }}"
+                title="Removed" alt="Removed"/ >
+        </td>
+    </tr>
+</table>
+{% endblock %}

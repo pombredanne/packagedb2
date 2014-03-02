@@ -36,8 +36,8 @@ from mock import patch
 sys.path.insert(0, os.path.join(os.path.dirname(
     os.path.abspath(__file__)), '..'))
 
-import pkgdb
-from pkgdb.lib import model
+import pkgdb2
+from pkgdb2.lib import model
 from tests import (Modeltests, FakeFasUser, FakeFasUserAdmin,
                    create_package_acl, user_set)
 
@@ -49,15 +49,15 @@ class FlaskUiPackagesTest(Modeltests):
         """ Set up the environnment, ran before every tests. """
         super(FlaskUiPackagesTest, self).setUp()
 
-        pkgdb.APP.config['TESTING'] = True
-        pkgdb.SESSION = self.session
-        pkgdb.ui.SESSION = self.session
-        pkgdb.ui.acls.SESSION = self.session
-        pkgdb.ui.admin.SESSION = self.session
-        pkgdb.ui.collections.SESSION = self.session
-        pkgdb.ui.packagers.SESSION = self.session
-        pkgdb.ui.packages.SESSION = self.session
-        self.app = pkgdb.APP.test_client()
+        pkgdb2.APP.config['TESTING'] = True
+        pkgdb2.SESSION = self.session
+        pkgdb2.ui.SESSION = self.session
+        pkgdb2.ui.acls.SESSION = self.session
+        pkgdb2.ui.admin.SESSION = self.session
+        pkgdb2.ui.collections.SESSION = self.session
+        pkgdb2.ui.packagers.SESSION = self.session
+        pkgdb2.ui.packages.SESSION = self.session
+        self.app = pkgdb2.APP.test_client()
 
     def test_list_packages(self):
         """ Test the list_packages function. """
@@ -76,7 +76,7 @@ class FlaskUiPackagesTest(Modeltests):
 
         output = self.app.get('/package/geany/')
         self.assertEqual(output.status_code, 200)
-        self.assertTrue('<h1>geany</h1>' in output.data)
+        self.assertTrue('<h1 property="doap:name">geany</h1>' in output.data)
         self.assertTrue('<h3>Fedora 18</h3>' in output.data)
         self.assertTrue('<a href="/packager/pingou/">' in output.data)
         self.assertTrue('<a href="/packager/group::gtk-sig/">' in output.data)
@@ -87,20 +87,20 @@ class FlaskUiPackagesTest(Modeltests):
             '<li class="errors">No package of this name found.</li>'
             in output.data)
 
-    @patch('pkgdb.lib.utils')
-    @patch('pkgdb.is_admin')
+    @patch('pkgdb2.lib.utils')
+    @patch('pkgdb2.is_admin')
     def test_package_new(self, login_func, mock_func):
         """ Test the package_new function. """
-        login_func.return_value=None
+        login_func.return_value = None
         create_package_acl(self.session)
 
         user = FakeFasUser()
-        with user_set(pkgdb.APP, user):
+        with user_set(pkgdb2.APP, user):
             output = self.app.get('/new/package/')
             self.assertEqual(output.status_code, 302)
 
         user = FakeFasUserAdmin()
-        with user_set(pkgdb.APP, user):
+        with user_set(pkgdb2.APP, user):
             output = self.app.get('/new/package/')
             self.assertEqual(output.status_code, 200)
             self.assertTrue(
@@ -114,12 +114,14 @@ class FlaskUiPackagesTest(Modeltests):
             data = {
                 'pkg_name': '',
                 'pkg_summary': '',
+                'pkg_description': '',
                 'pkg_reviewURL': '',
                 'pkg_status': '',
                 'pkg_shouldopen': '',
                 'pkg_collection': '',
                 'pkg_poc': '',
                 'pkg_upstreamURL': '',
+                'pkg_critpath': '',
                 'csrf_token': csrf_token,
             }
 
@@ -130,20 +132,22 @@ class FlaskUiPackagesTest(Modeltests):
             self.assertTrue(
                 output.data.count(
                     '<td class="errors">This field is required.</td>'
-                ) in (5, 6))
+                ) in (5, 7))
 
-            mock_func.get_packagers.return_value=['mclasen']
+            mock_func.get_packagers.return_value = ['mclasen']
             mock_func.log.return_value = ''
 
             data = {
                 'pkg_name': 'gnome-terminal',
                 'pkg_summary': 'Terminal emulator for GNOME',
+                'pkg_description': 'Terminal for GNOME...',
                 'pkg_reviewURL': 'http://bugzilla.redhat.com/1234',
                 'pkg_status': 'Approved',
                 'pkg_shouldopen': True,
                 'pkg_collection': 'devel',
                 'pkg_poc': 'mclasen',
                 'pkg_upstreamURL': '',
+                'pkg_critpath': False,
                 'csrf_token': csrf_token,
             }
 
@@ -157,15 +161,15 @@ class FlaskUiPackagesTest(Modeltests):
             self.assertTrue(
                 '<a href="/package/gnome-terminal/">' in output.data)
 
-    @patch('pkgdb.lib.utils')
-    @patch('pkgdb.packager_login_required')
+    @patch('pkgdb2.lib.utils')
+    @patch('pkgdb2.packager_login_required')
     def test_package_give(self, login_func, mock_func):
         """ Test the package_give function. """
-        login_func.return_value=None
+        login_func.return_value = None
         create_package_acl(self.session)
 
         user = FakeFasUser()
-        with user_set(pkgdb.APP, user):
+        with user_set(pkgdb2.APP, user):
             output = self.app.get('/package/guake/give')
             self.assertEqual(output.status_code, 200)
             self.assertTrue(
@@ -190,7 +194,7 @@ class FlaskUiPackagesTest(Modeltests):
                     '<td class="errors">This field is required.</td>'
                 ), 1)
 
-        with user_set(pkgdb.APP, user):
+        with user_set(pkgdb2.APP, user):
             output = self.app.get('/package/guake/give')
             self.assertEqual(output.status_code, 200)
             self.assertTrue(
@@ -204,7 +208,7 @@ class FlaskUiPackagesTest(Modeltests):
 
             data = {
                 'pkg_branch': 'devel',
-                'pkg_poc': 'spot',
+                'pkg_poc': 'limb',
                 'csrf_token': csrf_token,
             }
 
@@ -216,10 +220,10 @@ class FlaskUiPackagesTest(Modeltests):
                 'is not in the packager group</li>'
                 in output.data)
 
-        mock_func.get_packagers.return_value=['spot']
+        mock_func.get_packagers.return_value = ['spot']
         mock_func.log.return_value = ''
 
-        with user_set(pkgdb.APP, user):
+        with user_set(pkgdb2.APP, user):
             output = self.app.get('/package/guake/give')
             self.assertEqual(output.status_code, 200)
             self.assertTrue(
@@ -240,10 +244,11 @@ class FlaskUiPackagesTest(Modeltests):
             output = self.app.post('/package/guake/give', data=data,
                                    follow_redirects=True)
             self.assertEqual(output.status_code, 200)
-            self.assertTrue('<h1>guake</h1>' in output.data)
+            self.assertTrue('<h1 property="doap:name">guake</h1>'
+                            in output.data)
             self.assertTrue('<a href="/packager/spot/">' in output.data)
 
-        with user_set(pkgdb.APP, user):
+        with user_set(pkgdb2.APP, user):
             output = self.app.get('/package/random/give')
             self.assertEqual(output.status_code, 200)
             self.assertTrue(
@@ -251,7 +256,7 @@ class FlaskUiPackagesTest(Modeltests):
                 in output.data)
 
         user.username = 'ralph'
-        with user_set(pkgdb.APP, user):
+        with user_set(pkgdb2.APP, user):
             output = self.app.get('/package/guake/give')
             self.assertEqual(output.status_code, 200)
             self.assertTrue(
@@ -276,16 +281,16 @@ class FlaskUiPackagesTest(Modeltests):
                 '<td><select id="pkg_branch" multiple ''name="pkg_branch">'
                 '</select></td>' in output.data)
 
-    @patch('pkgdb.lib.utils')
-    @patch('pkgdb.packager_login_required')
+    @patch('pkgdb2.lib.utils')
+    @patch('pkgdb2.packager_login_required')
     def test_package_orphan(self, login_func, mock_func):
         """ Test the package_orphan function. """
-        login_func.return_value=None
+        login_func.return_value = None
         create_package_acl(self.session)
 
         user = FakeFasUser()
         user.username = 'toshio'
-        with user_set(pkgdb.APP, user):
+        with user_set(pkgdb2.APP, user):
             output = self.app.get(
                 '/package/guake/devel/orphan', follow_redirects=True)
             self.assertEqual(output.status_code, 200)
@@ -294,7 +299,7 @@ class FlaskUiPackagesTest(Modeltests):
                 'of contact.</li>' in output.data)
 
         user = FakeFasUser()
-        with user_set(pkgdb.APP, user):
+        with user_set(pkgdb2.APP, user):
             output = self.app.get(
                 '/package/guake/devel/orphan', follow_redirects=True)
             self.assertEqual(output.status_code, 200)
@@ -303,7 +308,7 @@ class FlaskUiPackagesTest(Modeltests):
                 'branch: devel</li>' in output.data)
 
         user = FakeFasUserAdmin()
-        with user_set(pkgdb.APP, user):
+        with user_set(pkgdb2.APP, user):
             output = self.app.get(
                 '/package/guake/devel/orphan', follow_redirects=True)
             self.assertEqual(output.status_code, 200)
@@ -311,7 +316,7 @@ class FlaskUiPackagesTest(Modeltests):
                 '<li class="message">You are no longer point of contact on '
                 'branch: devel</li>' in output.data)
 
-        with user_set(pkgdb.APP, user):
+        with user_set(pkgdb2.APP, user):
             output = self.app.get(
                 '/package/random/devel/orphan', follow_redirects=True)
             self.assertEqual(output.status_code, 200)
@@ -319,17 +324,16 @@ class FlaskUiPackagesTest(Modeltests):
                 '<li class="errors">No package of this name found.</li>'
                 in output.data)
 
-
-    @patch('pkgdb.lib.utils')
-    @patch('pkgdb.packager_login_required')
+    @patch('pkgdb2.lib.utils')
+    @patch('pkgdb2.packager_login_required')
     def test_package_retire(self, login_func, mock_func):
         """ Test the package_retire function. """
-        login_func.return_value=None
+        login_func.return_value = None
         create_package_acl(self.session)
 
         user = FakeFasUser()
         user.username = 'toshio'
-        with user_set(pkgdb.APP, user):
+        with user_set(pkgdb2.APP, user):
             output = self.app.get(
                 '/package/guake/devel/retire', follow_redirects=True)
             self.assertEqual(output.status_code, 200)
@@ -338,7 +342,7 @@ class FlaskUiPackagesTest(Modeltests):
                 'branch: devel</li>' in output.data)
 
         user = FakeFasUser()
-        with user_set(pkgdb.APP, user):
+        with user_set(pkgdb2.APP, user):
             output = self.app.get(
                 '/package/guake/devel/orphan', follow_redirects=True)
             self.assertEqual(output.status_code, 200)
@@ -354,7 +358,7 @@ class FlaskUiPackagesTest(Modeltests):
 
         user = FakeFasUser()
         user.username = 'toshio'
-        with user_set(pkgdb.APP, user):
+        with user_set(pkgdb2.APP, user):
             output = self.app.get(
                 '/package/guake/devel/retire', follow_redirects=True)
             self.assertEqual(output.status_code, 200)
@@ -366,11 +370,11 @@ class FlaskUiPackagesTest(Modeltests):
                 '/package/guake/F-18/retire', follow_redirects=True)
             self.assertEqual(output.status_code, 200)
             self.assertTrue(
-                '<li class="error">You are not allowed to deprecate the '
+                '<li class="error">You are not allowed to retire the '
                 'package: guake on branch F-18.</li>' in output.data)
 
         user = FakeFasUserAdmin()
-        with user_set(pkgdb.APP, user):
+        with user_set(pkgdb2.APP, user):
             output = self.app.get(
                 '/package/guake/F-18/retire', follow_redirects=True)
             self.assertEqual(output.status_code, 200)
@@ -378,7 +382,7 @@ class FlaskUiPackagesTest(Modeltests):
                 '<li class="message">This package has been retired on '
                 'branch: F-18</li>' in output.data)
 
-        with user_set(pkgdb.APP, user):
+        with user_set(pkgdb2.APP, user):
             output = self.app.get(
                 '/package/random/devel/retire', follow_redirects=True)
             self.assertEqual(output.status_code, 200)
@@ -386,17 +390,16 @@ class FlaskUiPackagesTest(Modeltests):
                 '<li class="errors">No package of this name found.</li>'
                 in output.data)
 
-
-    @patch('pkgdb.lib.utils')
-    @patch('pkgdb.packager_login_required')
+    @patch('pkgdb2.lib.utils')
+    @patch('pkgdb2.packager_login_required')
     def test_package_take(self, login_func, mock_func):
         """ Test the package_take function. """
-        login_func.return_value=None
+        login_func.return_value = None
         create_package_acl(self.session)
 
         user = FakeFasUser()
         user.username = 'toshio'
-        with user_set(pkgdb.APP, user):
+        with user_set(pkgdb2.APP, user):
             output = self.app.get(
                 '/package/guake/devel/take', follow_redirects=True)
             self.assertEqual(output.status_code, 200)
@@ -405,7 +408,7 @@ class FlaskUiPackagesTest(Modeltests):
                 in output.data)
 
         user = FakeFasUser()
-        with user_set(pkgdb.APP, user):
+        with user_set(pkgdb2.APP, user):
             output = self.app.get(
                 '/package/guake/devel/orphan', follow_redirects=True)
             self.assertEqual(output.status_code, 200)
@@ -420,7 +423,7 @@ class FlaskUiPackagesTest(Modeltests):
                 '<li class="message">You have taken the package guake on '
                 'branch devel</li>' in output.data)
 
-        with user_set(pkgdb.APP, user):
+        with user_set(pkgdb2.APP, user):
             output = self.app.get(
                 '/package/random/devel/take', follow_redirects=True)
             self.assertEqual(output.status_code, 200)

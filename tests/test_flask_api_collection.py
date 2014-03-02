@@ -36,8 +36,8 @@ from mock import patch
 sys.path.insert(0, os.path.join(os.path.dirname(
     os.path.abspath(__file__)), '..'))
 
-import pkgdb
-from pkgdb.lib import model
+import pkgdb2
+from pkgdb2.lib import model
 from tests import (Modeltests, FakeFasUser, FakeFasUserAdmin,
                    create_collection, user_set)
 
@@ -49,26 +49,26 @@ class FlaskApiCollectionTest(Modeltests):
         """ Set up the environnment, ran before every tests. """
         super(FlaskApiCollectionTest, self).setUp()
 
-        pkgdb.APP.config['TESTING'] = True
-        pkgdb.SESSION = self.session
-        pkgdb.api.collections.SESSION = self.session
-        self.app = pkgdb.APP.test_client()
+        pkgdb2.APP.config['TESTING'] = True
+        pkgdb2.SESSION = self.session
+        pkgdb2.api.collections.SESSION = self.session
+        self.app = pkgdb2.APP.test_client()
 
-    @patch('pkgdb.packager_login_required')
+    @patch('pkgdb2.packager_login_required')
     def test_collection_status(self, login_func):
         """ Test the api_collection_status function.  """
-        login_func.return_value=None
+        login_func.return_value = None
 
         # Redirect as you are not admin
         user = FakeFasUser()
 
-        with user_set(pkgdb.APP, user):
+        with user_set(pkgdb2.APP, user):
             output = self.app.post('/api/collection/F-18/status/')
             self.assertEqual(output.status_code, 302)
 
         user = FakeFasUserAdmin()
 
-        with user_set(pkgdb.APP, user):
+        with user_set(pkgdb2.APP, user):
             output = self.app.post('/api/collection/F-18/status/')
             self.assertEqual(output.status_code, 500)
             data = json.loads(output.data)
@@ -85,8 +85,8 @@ class FlaskApiCollectionTest(Modeltests):
             )
 
         data = {'collection_branchname': 'F-18',
-                'collection_status' : 'EOL'}
-        with user_set(pkgdb.APP, user):
+                'collection_status': 'EOL'}
+        with user_set(pkgdb2.APP, user):
             output = self.app.post('/api/collection/F-19/status/', data=data)
             self.assertEqual(output.status_code, 500)
             data = json.loads(output.data)
@@ -99,8 +99,8 @@ class FlaskApiCollectionTest(Modeltests):
             )
 
         data = {'collection_branchname': 'F-18',
-                'collection_status' : 'EOL'}
-        with user_set(pkgdb.APP, user):
+                'collection_status': 'EOL'}
+        with user_set(pkgdb2.APP, user):
             output = self.app.post('/api/collection/F-18/status', data=data)
             self.assertEqual(output.status_code, 500)
             data = json.loads(output.data)
@@ -115,8 +115,8 @@ class FlaskApiCollectionTest(Modeltests):
         create_collection(self.session)
 
         data = {'collection_branchname': 'F-18',
-                'collection_status' : 'EOL'}
-        with user_set(pkgdb.APP, user):
+                'collection_status': 'EOL'}
+        with user_set(pkgdb2.APP, user):
             output = self.app.post('/api/collection/F-18/status', data=data)
             self.assertEqual(output.status_code, 200)
             data = json.loads(output.data)
@@ -124,7 +124,9 @@ class FlaskApiCollectionTest(Modeltests):
                 data,
                 {
                     "output": "ok",
-                    "messages": ['Collection updated to \"EOL\"'],
+                    "messages": [
+                        'Collection updated from "Active" to \"EOL\"'
+                    ],
                 }
             )
 
@@ -152,8 +154,7 @@ class FlaskApiCollectionTest(Modeltests):
                          ['collections'])
         self.assertEqual(len(output['collections']), 4)
         self.assertEqual(set(output['collections'][0].keys()),
-                         set(['pendingurltemplate', 'publishurltemplate',
-                              'branchname', 'version', 'name']))
+                         set(['branchname', 'version', 'name', 'status']))
 
         output = self.app.get('/api/collections/F-*/')
         self.assertEqual(output.status_code, 200)
@@ -161,52 +162,54 @@ class FlaskApiCollectionTest(Modeltests):
         self.assertEqual(output.keys(),
                          ['collections'])
         self.assertEqual(set(output['collections'][0].keys()),
-                         set(['pendingurltemplate', 'publishurltemplate',
-                              'branchname', 'version', 'name']))
+                         set(['branchname', 'version', 'name', 'status']))
         self.assertEqual(len(output['collections']), 2)
         self.assertEqual(output['collections'][0]['name'], 'Fedora')
         self.assertEqual(output['collections'][0]['version'], '17')
 
-    @patch('pkgdb.packager_login_required')
+    @patch('pkgdb2.packager_login_required')
     def test_collection_new(self, login_func):
         """ Test the api_collection_new function.  """
-        login_func.return_value=None
+        login_func.return_value = None
 
         # Redirect as you are not admin
         user = FakeFasUser()
-        with user_set(pkgdb.APP, user):
+        with user_set(pkgdb2.APP, user):
             output = self.app.post('/api/collection/new/')
             self.assertEqual(output.status_code, 302)
 
         user = FakeFasUserAdmin()
 
-        with user_set(pkgdb.APP, user):
+        with user_set(pkgdb2.APP, user):
             output = self.app.post('/api/collection/new/')
             self.assertEqual(output.status_code, 500)
             data = json.loads(output.data)
+            print output.data
             self.assertEqual(
                 data,
                 {
-                    "output": "notok",
+                    "error": "Invalid input submitted",
                     "error_detail": [
+                        "collection_distTag: This field is required.",
                         "collection_status: Not a valid choice",
                         "collection_name: This field is required.",
                         "collection_branchname: This field is required.",
-                        "collection_distTag: This field is required.",
+                        "collection_kojiname: This field is required.",
                         "collection_version: This field is required.",
                     ],
-                    "error": "Invalid input submitted",
+                    "output": "notok",
                 }
             )
 
         data = {
-            'collection_name':'EPEL',
-            'collection_version':'6',
-            'collection_branchname':'EL-6',
-            'collection_status':'ACTIVE',
-            'collection_distTag':'.el6',
+            'collection_name': 'EPEL',
+            'collection_version': '6',
+            'collection_branchname': 'EL-6',
+            'collection_status': 'ACTIVE',
+            'collection_distTag': '.el6',
+            'collection_kojiname': 'epel6'
         }
-        with user_set(pkgdb.APP, user):
+        with user_set(pkgdb2.APP, user):
             output = self.app.post('/api/collection/new/', data=data)
             self.assertEqual(output.status_code, 500)
             data = json.loads(output.data)
@@ -223,13 +226,14 @@ class FlaskApiCollectionTest(Modeltests):
 
         # Need to find out how to set flask.g.fas_user
         data = {
-            'collection_name':'EPEL',
-            'collection_version':'6',
-            'collection_branchname':'EL-6',
-            'collection_status':'Active',
-            'collection_distTag':'.el6',
+            'collection_name': 'EPEL',
+            'collection_version': '6',
+            'collection_branchname': 'EL-6',
+            'collection_status': 'Active',
+            'collection_distTag': '.el6',
+            'collection_kojiname': 'epel6'
         }
-        with user_set(pkgdb.APP, user):
+        with user_set(pkgdb2.APP, user):
             output = self.app.post('/api/collection/new/', data=data)
             self.assertEqual(output.status_code, 200)
             data = json.loads(output.data)

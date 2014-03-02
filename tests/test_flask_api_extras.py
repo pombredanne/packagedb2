@@ -34,10 +34,11 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(
     os.path.abspath(__file__)), '..'))
 
-import pkgdb
-from pkgdb.lib import model
+import pkgdb2
+from pkgdb2.lib import model
 from tests import (Modeltests, FakeFasUser,
-                   create_package_acl, create_package_acl2)
+                   create_package_acl, create_package_acl2,
+                   create_package_critpath)
 
 
 class FlaskApiExtrasTest(Modeltests):
@@ -47,13 +48,13 @@ class FlaskApiExtrasTest(Modeltests):
         """ Set up the environnment, ran before every tests. """
         super(FlaskApiExtrasTest, self).setUp()
 
-        pkgdb.APP.config['TESTING'] = True
-        pkgdb.SESSION = self.session
-        pkgdb.api.extras.SESSION = self.session
-        self.app = pkgdb.APP.test_client()
+        pkgdb2.APP.config['TESTING'] = True
+        pkgdb2.SESSION = self.session
+        pkgdb2.api.extras.SESSION = self.session
+        self.app = pkgdb2.APP.test_client()
 
         # Let's make sure the cache is empty for the tests
-        pkgdb.CACHE.invalidate()
+        pkgdb2.CACHE.invalidate()
 
     def test_api_bugzilla_empty(self):
         """ Test the api_bugzilla function with an empty database. """
@@ -81,6 +82,14 @@ class FlaskApiExtrasTest(Modeltests):
             u'bugzillaAcls': {},
             u'title': u'Fedora Package Database -- Bugzilla ACLs'
         }
+
+        self.assertEqual(data, expected)
+
+        output = self.app.get(
+            '/api/bugzilla/',
+            environ_base={'HTTP_ACCEPT': 'application/json'})
+        self.assertEqual(output.status_code, 200)
+        data = json.loads(output.data)
 
         self.assertEqual(data, expected)
 
@@ -114,34 +123,37 @@ Fedora|guake|Top down terminal for GNOME|pingou||spot"""
             u'bugzillaAcls': {
                 u'Fedora': [
                     {
-                    "fedocal": {
-                      "owner": "orphan",
-                      "cclist": {
-                        "groups": [],
-                        "people": ["pingou", 'toshio']
-                      },
-                      "qacontact": None,
-                      "summary": "A web-based calendar for Fedora"
-                    }
-                  },
-                    {u'geany': {
-                        u'owner': u'@gtk-sig',
-                        u'cclist': {
-                            u'groups': [],
-                            u'people': []
-                        },
-                        u'qacontact': None,
-                        u'summary': u'A fast and lightweight IDE using GTK2'
+                        "fedocal": {
+                            "owner": "orphan",
+                            "cclist": {
+                                "groups": [],
+                                "people": ["pingou", 'toshio']
+                            },
+                            "qacontact": None,
+                            "summary": "A web-based calendar for Fedora"
                         }
                     },
-                    {u'guake': {
-                        u'owner': u'pingou',
-                        u'cclist': {
-                            u'groups': [],
-                            u'people': [u'spot']
-                        },
-                        u'qacontact': None,
-                        u'summary': u'Top down terminal for GNOME'
+                    {
+                        u'geany': {
+                            u'owner': u'@gtk-sig',
+                            u'cclist': {
+                                u'groups': [],
+                                u'people': []
+                            },
+                            u'qacontact': None,
+                            u'summary': u'A fast and lightweight IDE using '
+                            'GTK2'
+                        }
+                    },
+                    {
+                        u'guake': {
+                            u'owner': u'pingou',
+                            u'cclist': {
+                                u'groups': [],
+                                u'people': [u'spot']
+                            },
+                            u'qacontact': None,
+                            u'summary': u'Top down terminal for GNOME'
                         }
                     },
                 ]
@@ -187,6 +199,14 @@ Fedora|guake|Top down terminal for GNOME|pingou||spot"""
             u'version': None,
             u'eol': False
         }
+
+        self.assertEqual(data, expected)
+
+        output = self.app.get(
+            '/api/notify/',
+            environ_base={'HTTP_ACCEPT': 'application/json'})
+        self.assertEqual(output.status_code, 200)
+        data = json.loads(output.data)
 
         self.assertEqual(data, expected)
 
@@ -265,6 +285,14 @@ guake|pingou
 
         self.assertEqual(data, expected)
 
+        output = self.app.get(
+            '/api/vcs/',
+            environ_base={'HTTP_ACCEPT': 'application/json'})
+        self.assertEqual(output.status_code, 200)
+        data = json.loads(output.data)
+
+        self.assertEqual(data, expected)
+
     def test_api_vcs_filled(self):
         """ Test the api_vcs function with a filled database. """
         # Filled DB
@@ -326,7 +354,7 @@ avail | @provenpackager,pingou,spot | rpms/guake/master"""
                     "master": {
                         "commit": {
                             "groups": ["provenpackager"],
-                            "people": ["pingou","toshio"]
+                            "people": ["pingou", "toshio"]
                         }
                     },
                     "f17": {
@@ -338,6 +366,72 @@ avail | @provenpackager,pingou,spot | rpms/guake/master"""
                 }
             },
             u'title': u'Fedora Package Database -- VCS ACLs'}
+
+        self.assertEqual(data, expected)
+
+    def test_api_critpath_empty(self):
+        """ Test the api_critpath function with an empty database. """
+
+        # Empty DB
+        output = self.app.get('/api/critpath/')
+        self.assertEqual(output.status_code, 200)
+
+        expected = ""
+        self.assertEqual(output.data, expected)
+
+        output = self.app.get('/api/critpath/?format=random')
+        self.assertEqual(output.status_code, 200)
+        self.assertEqual(output.data, expected)
+
+        output = self.app.get('/api/critpath/?format=json')
+        self.assertEqual(output.status_code, 200)
+        data = json.loads(output.data)
+        expected = {"pkgs": {}}
+
+        self.assertEqual(data, expected)
+
+        output = self.app.get(
+            '/api/critpath/',
+            environ_base={'HTTP_ACCEPT': 'application/json'})
+        self.assertEqual(output.status_code, 200)
+        data = json.loads(output.data)
+
+        self.assertEqual(data, expected)
+
+    def test_api_critpath_filled(self):
+        """ Test the api_critpath function with a filled database. """
+        # Fill the DB
+        create_package_acl(self.session)
+        create_package_critpath(self.session)
+
+        output = self.app.get('/api/critpath/')
+        self.assertEqual(output.status_code, 200)
+
+        expected = """== devel ==
+* kernel
+== F-18 ==
+* kernel
+"""
+        self.assertEqual(output.data, expected)
+
+        output = self.app.get('/api/critpath/?format=random')
+        self.assertEqual(output.status_code, 200)
+        self.assertEqual(output.data, expected)
+
+        output = self.app.get('/api/critpath/?format=json')
+        self.assertEqual(output.status_code, 200)
+        data = json.loads(output.data)
+
+        expected = {
+            u'pkgs': {
+                u'F-18': [
+                    u"kernel"
+                ],
+                u'devel': [
+                    u"kernel"
+                ]
+            },
+        }
 
         self.assertEqual(data, expected)
 

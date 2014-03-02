@@ -33,7 +33,7 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(
     os.path.abspath(__file__)), '..'))
 
-from pkgdb.lib import model
+from pkgdb2.lib import model
 from tests import Modeltests, create_package, create_package_acl
 
 
@@ -63,7 +63,7 @@ class Packagetests(Modeltests):
         package = package.to_json()
         self.assertEqual(set(package.keys()), set(['status', 'upstream_url',
                          'name', 'summary', 'acls', 'creation_date',
-                         'review_url']))
+                         'review_url', 'description']))
 
     def test_search(self):
         """ Test the search function of Package. """
@@ -105,8 +105,11 @@ class Packagetests(Modeltests):
         )
         self.assertEqual(len(packages), 2)
         self.assertEqual(packages[0][0].name, 'guake')
-        self.assertEqual(packages[0][1].branchname, 'F-18')
-        self.assertEqual(packages[1][1].branchname, 'devel')
+
+        expected = set(['devel', 'F-18'])
+        branches = set([packages[0][1].branchname,
+                        packages[1][1].branchname])
+        self.assertEqual(branches.symmetric_difference(expected), set())
 
         packages = model.Package.get_package_of_user(
             self.session, user='pingou', poc=False

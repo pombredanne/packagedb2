@@ -3,7 +3,7 @@
 flask>=0.10
 flask-wtf
 kitchen
-python-fedora
+python-fedora>=0.3.33
 sqlalchemy
 python-openid-teams
 python-openid-cla
@@ -13,4 +13,4 @@ dogpile.cache
 mock
 python-bugzilla
 python-memcached
-blinker
+blinker # required by Flask for the unit-tests (for signaling)

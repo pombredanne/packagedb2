@@ -36,12 +36,11 @@ from mock import patch
 sys.path.insert(0, os.path.join(os.path.dirname(
     os.path.abspath(__file__)), '..'))
 
-import pkgdb
-from pkgdb import APP
-from pkgdb.lib import model
+import pkgdb2
+from pkgdb2 import APP
+from pkgdb2.lib import model
 from tests import (Modeltests, FakeFasUser, FakeFasUserAdmin,
                    create_package_acl, user_set)
-
 
 
 class FlaskApiAclsTest(Modeltests):
@@ -51,51 +50,15 @@ class FlaskApiAclsTest(Modeltests):
         """ Set up the environnment, ran before every tests. """
         super(FlaskApiAclsTest, self).setUp()
 
-        pkgdb.APP.config['TESTING'] = True
-        pkgdb.SESSION = self.session
-        pkgdb.api.acls.SESSION = self.session
-        self.app = pkgdb.APP.test_client()
+        pkgdb2.APP.config['TESTING'] = True
+        pkgdb2.SESSION = self.session
+        pkgdb2.api.acls.SESSION = self.session
+        self.app = pkgdb2.APP.test_client()
 
-    def test_acl_get(self):
-        """ Test the api_acl_get function.  """
-
-        output = self.app.get('/api/package/acl/get/guake/')
-        self.assertEqual(output.status_code, 500)
-        data = json.loads(output.data)
-        self.assertEqual(data, {
-            "output": "notok",
-            "error": "No package found with name \"guake\""
-        })
-
-        output = self.app.get('/api/package/acl/get/')
-        self.assertEqual(output.status_code, 500)
-        data = json.loads(output.data)
-        self.assertEqual(data, {
-            "output": "notok",
-            "error": "No package provided",
-        })
-
-        create_package_acl(self.session)
-
-        output = self.app.get('/api/package/acl/get/guake/')
-        self.assertEqual(output.status_code, 200)
-        output = json.loads(output.data)
-        self.assertEqual(output.keys(),
-                         ['acls'])
-        self.assertEqual(len(output['acls']), 2)
-        self.assertEqual(output['acls'][0]['collection']['branchname'],
-                         'F-18')
-        self.assertEqual(output['acls'][0]['point_of_contact'],
-                         'pingou')
-        self.assertEqual(output['acls'][1]['collection']['branchname'],
-                         'devel')
-        self.assertEqual(output['acls'][1]['point_of_contact'],
-                         'pingou')
-
-    @patch('pkgdb.packager_login_required')
+    @patch('pkgdb2.packager_login_required')
     def test_acl_update(self, login_func):
         """ Test the api_acl_update function.  """
-        login_func.return_value=None
+        login_func.return_value = None
 
         output = self.app.post('/api/package/acl')
         self.assertEqual(output.status_code, 301)
@@ -175,11 +138,11 @@ class FlaskApiAclsTest(Modeltests):
             self.assertEqual(output.status_code, 200)
             self.assertEqual(json_out, exp)
 
-    @patch('pkgdb.lib.utils')
-    @patch('pkgdb.packager_login_required')
+    @patch('pkgdb2.lib.utils')
+    @patch('pkgdb2.packager_login_required')
     def test_acl_reassign(self, login_func, mock_func):
         """ Test the api_acl_reassign function. """
-        login_func.return_value=None
+        login_func.return_value = None
 
         output = self.app.post('/api/package/acl/reassign')
         self.assertEqual(output.status_code, 301)
@@ -215,7 +178,7 @@ class FlaskApiAclsTest(Modeltests):
             self.assertEqual(output.status_code, 500)
             self.assertEqual(json_out, exp)
 
-        mock_func.get_packagers.return_value=['pingou', 'ralph', 'toshio']
+        mock_func.get_packagers.return_value = ['pingou', 'ralph', 'toshio']
         mock_func.log.return_value = ''
 
         # Fails is user is a packager but not in the group that is the
@@ -235,7 +198,7 @@ class FlaskApiAclsTest(Modeltests):
         user.groups.append('gtk-sig')
 
         with user_set(APP, user):
-            exp = { "messages": ['', ''], "output": "ok"}
+            exp = {"messages": ['', ''], "output": "ok"}
             output = self.app.post('/api/package/acl/reassign/', data=data)
             json_out = json.loads(output.data)
             self.assertEqual(output.status_code, 200)

@@ -33,7 +33,7 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(
     os.path.abspath(__file__)), '..'))
 
-from pkgdb.lib import model
+from pkgdb2.lib import model
 from tests import Modeltests, create_package_acl
 
 
@@ -62,26 +62,28 @@ class PackageListingAcltests(Modeltests):
 
         # Because matching times in tests is hard.
         del output['packagelist']['package']['creation_date']
+        del output['packagelist']['status_change']
 
         target = {
             'status': u'Approved',
             'acl': 'commit',
             'fas_name': u'pingou',
             'packagelist': {
+                'status': u'Approved',
                 'point_of_contact': u'pingou',
                 'collection': {
-                    'pendingurltemplate': None,
-                    'publishurltemplate': None,
                     'branchname': u'F-18',
                     'version': u'18',
-                    'name': u'Fedora'
+                    'name': u'Fedora',
+                    'status': u'Active',
                 },
                 'package': {
                     'upstream_url': u'http://guake.org',
                     'name': u'guake',
                     'status': u'Approved',
                     'review_url': u'https://bugzilla.redhat.com/450189',
-                    'summary': u'Top down terminal for GNOME'
+                    'summary': u'Top down terminal for GNOME',
+                    'description': u'Top down terminal...',
                 }
             }
         }

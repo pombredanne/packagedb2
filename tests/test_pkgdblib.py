@@ -39,12 +39,13 @@ from sqlalchemy.exc import IntegrityError
 sys.path.insert(0, os.path.join(os.path.dirname(
     os.path.abspath(__file__)), '..'))
 
-import pkgdb
-import pkgdb.lib as pkgdblib
+import pkgdb2
+import pkgdb2.lib as pkgdblib
 from tests import (FakeFasUser, FakeFasUserAdmin, Modeltests,
                    FakeFasGroupValid, FakeFasGroupInvalid,
                    create_collection, create_package,
-                   create_package_listing, create_package_acl)
+                   create_package_listing, create_package_acl,
+                   create_package_critpath)
 
 
 class PkgdbLibtests(Modeltests):
@@ -59,6 +60,7 @@ class PkgdbLibtests(Modeltests):
                           self.session,
                           pkg_name='test',
                           pkg_summary='test package',
+                          pkg_description='test description',
                           pkg_status='Approved',
                           pkg_collection='F-18',
                           pkg_poc='ralph',
@@ -74,6 +76,7 @@ class PkgdbLibtests(Modeltests):
                           self.session,
                           pkg_name='test',
                           pkg_summary='test package',
+                          pkg_description='test description',
                           pkg_status='Approved',
                           pkg_collection='F-18',
                           pkg_poc='group::tests',
@@ -84,8 +87,8 @@ class PkgdbLibtests(Modeltests):
                           )
         self.session.rollback()
 
-        pkgdb.lib.utils.get_packagers = mock.MagicMock()
-        pkgdb.lib.utils.get_packagers.reset_mock()
+        pkgdb2.lib.utils.get_packagers = mock.MagicMock()
+        pkgdb2.lib.utils.get_packagers.reset_mock()
 
         # Configuration to query FAS isn't set
         self.assertRaises(pkgdblib.PkgdbException,
@@ -93,6 +96,7 @@ class PkgdbLibtests(Modeltests):
                           self.session,
                           pkg_name='guake',
                           pkg_summary='Drop down terminal',
+                          pkg_description='Drop down terminal desc',
                           pkg_status='Approved',
                           pkg_collection='F-18',
                           pkg_poc='ralph',
@@ -101,8 +105,8 @@ class PkgdbLibtests(Modeltests):
                           pkg_upstreamURL='http://guake.org',
                           user=FakeFasUserAdmin())
 
-        pkgdb.lib.utils.get_packagers = mock.MagicMock()
-        pkgdb.lib.utils.get_packagers.return_value = ['pingou']
+        pkgdb2.lib.utils.get_packagers = mock.MagicMock()
+        pkgdb2.lib.utils.get_packagers.return_value = ['pingou']
 
         # 'Ralph' is not in the packager group
         self.assertRaises(pkgdblib.PkgdbException,
@@ -110,6 +114,7 @@ class PkgdbLibtests(Modeltests):
                           self.session,
                           pkg_name='guake',
                           pkg_summary='Drop down terminal',
+                          pkg_description='Drop down terminal desc',
                           pkg_status='Approved',
                           pkg_collection='F-18',
                           pkg_poc='ralph',
@@ -118,8 +123,8 @@ class PkgdbLibtests(Modeltests):
                           pkg_upstreamURL='http://guake.org',
                           user=FakeFasUserAdmin())
 
-        pkgdb.lib.utils.get_fas_group = mock.MagicMock()
-        pkgdb.lib.utils.get_fas_group.return_value = FakeFasGroupInvalid
+        pkgdb2.lib.utils.get_fas_group = mock.MagicMock()
+        pkgdb2.lib.utils.get_fas_group.return_value = FakeFasGroupInvalid
 
         # Invalid FAS group returned
         self.assertRaises(pkgdblib.PkgdbException,
@@ -127,6 +132,7 @@ class PkgdbLibtests(Modeltests):
                           self.session,
                           pkg_name='fedocal',
                           pkg_summary='web calendar for Fedora',
+                          pkg_description='Web-based calendar system',
                           pkg_status='Approved',
                           pkg_collection='devel, F-18',
                           pkg_poc='group::infra-sig',
@@ -135,19 +141,20 @@ class PkgdbLibtests(Modeltests):
                           pkg_upstreamURL=None,
                           user=FakeFasUserAdmin())
 
-        pkgdb.lib.utils.get_packagers = mock.MagicMock()
-        pkgdb.lib.utils.get_packagers.return_value = ['ralph', 'pingou']
+        pkgdb2.lib.utils.get_packagers = mock.MagicMock()
+        pkgdb2.lib.utils.get_packagers.return_value = ['ralph', 'pingou']
 
         msg = pkgdblib.add_package(self.session,
-                                    pkg_name='guake',
-                                    pkg_summary='Drop down terminal',
-                                    pkg_status='Approved',
-                                    pkg_collection='F-18',
-                                    pkg_poc='ralph',
-                                    pkg_reviewURL=None,
-                                    pkg_shouldopen=None,
-                                    pkg_upstreamURL='http://guake.org',
-                                    user=FakeFasUserAdmin())
+                                   pkg_name='guake',
+                                   pkg_summary='Drop down terminal',
+                                   pkg_description='Drop down terminal desc',
+                                   pkg_status='Approved',
+                                   pkg_collection='F-18',
+                                   pkg_poc='ralph',
+                                   pkg_reviewURL=None,
+                                   pkg_shouldopen=None,
+                                   pkg_upstreamURL='http://guake.org',
+                                   user=FakeFasUserAdmin())
         self.assertEqual(msg, 'Package created')
         self.session.commit()
         packages = pkgdblib.model.Package.all(self.session)
@@ -157,6 +164,7 @@ class PkgdbLibtests(Modeltests):
         pkgdblib.add_package(self.session,
                              pkg_name='geany',
                              pkg_summary='GTK IDE',
+                             pkg_description='Lightweight IDE for GNOME',
                              pkg_status='Approved',
                              pkg_collection='devel, F-18',
                              pkg_poc='ralph',
@@ -170,12 +178,13 @@ class PkgdbLibtests(Modeltests):
         self.assertEqual('guake', packages[0].name)
         self.assertEqual('geany', packages[1].name)
 
-        pkgdb.lib.utils.get_fas_group = mock.MagicMock()
-        pkgdb.lib.utils.get_fas_group.return_value = FakeFasGroupValid
+        pkgdb2.lib.utils.get_fas_group = mock.MagicMock()
+        pkgdb2.lib.utils.get_fas_group.return_value = FakeFasGroupValid
 
         pkgdblib.add_package(self.session,
                              pkg_name='fedocal',
                              pkg_summary='web calendar for Fedora',
+                             pkg_description='Web-based calendar system',
                              pkg_status='Approved',
                              pkg_collection='devel, F-18',
                              pkg_poc='group::infra-sig',
@@ -222,7 +231,6 @@ class PkgdbLibtests(Modeltests):
                           self.session,
                           'guake',
                           'unknown')
-
 
     def test_set_acl_package(self):
         """ Test the set_acl_package function. """
@@ -341,6 +349,7 @@ class PkgdbLibtests(Modeltests):
                                  status='Awaiting Review',
                                  user=FakeFasUser(),
                                  )
+        self.session.commit()
 
         # You can obsolete your own ACLs
         pkgdblib.set_acl_package(self.session,
@@ -351,6 +360,7 @@ class PkgdbLibtests(Modeltests):
                                  status='Obsolete',
                                  user=FakeFasUser(),
                                  )
+        self.session.commit()
 
         # You can remove your own ACLs
         pkgdblib.set_acl_package(self.session,
@@ -361,6 +371,7 @@ class PkgdbLibtests(Modeltests):
                                  status='Removed',
                                  user=FakeFasUser(),
                                  )
+        self.session.commit()
 
         # An admin can approve you ACLs
         pkgdblib.set_acl_package(self.session,
@@ -371,6 +382,7 @@ class PkgdbLibtests(Modeltests):
                                  status='Approved',
                                  user=FakeFasUserAdmin(),
                                  )
+        self.session.commit()
 
         pkg_acl = pkgdblib.get_acl_package(self.session, 'guake')
         self.assertEqual(pkg_acl[0].collection.branchname, 'F-18')
@@ -403,8 +415,8 @@ class PkgdbLibtests(Modeltests):
                           )
         self.session.rollback()
 
-        pkgdb.lib.utils.get_packagers = mock.MagicMock()
-        pkgdb.lib.utils.get_packagers.return_value = [
+        pkgdb2.lib.utils.get_packagers = mock.MagicMock()
+        pkgdb2.lib.utils.get_packagers.return_value = [
             'pingou', 'toshio', 'ralph']
 
         # User must be the actual Point of Contact (or an admin of course,
@@ -424,12 +436,12 @@ class PkgdbLibtests(Modeltests):
         user.username = 'ralph'
         # Change PoC to a group
         pkgdblib.update_pkg_poc(
-                          self.session,
-                          pkg_name='guake',
-                          pkg_branch='F-18',
-                          user=user,
-                          pkg_poc='group::perl-sig',
-                          )
+            self.session,
+            pkg_name='guake',
+            pkg_branch='F-18',
+            user=user,
+            pkg_poc='group::perl-sig',
+        )
 
         pkg_acl = pkgdblib.get_acl_package(self.session, 'guake')
         self.assertEqual(pkg_acl[0].collection.branchname, 'F-18')
@@ -449,30 +461,30 @@ class PkgdbLibtests(Modeltests):
 
         user.groups.append('perl-sig')
         pkgdblib.update_pkg_poc(
-                          self.session,
-                          pkg_name='guake',
-                          pkg_branch='F-18',
-                          user=user,
-                          pkg_poc='ralph',
-                          )
+            self.session,
+            pkg_name='guake',
+            pkg_branch='F-18',
+            user=user,
+            pkg_poc='ralph',
+        )
 
         pkg_acl = pkgdblib.get_acl_package(self.session, 'guake')
         self.assertEqual(pkg_acl[0].collection.branchname, 'F-18')
         self.assertEqual(pkg_acl[0].package.name, 'guake')
         self.assertEqual(pkg_acl[0].point_of_contact, 'ralph')
 
-        pkgdb.lib.utils.get_packagers = mock.MagicMock()
-        pkgdb.lib.utils.get_packagers.return_value = ['pingou', 'toshio']
+        pkgdb2.lib.utils.get_packagers = mock.MagicMock()
+        pkgdb2.lib.utils.get_packagers.return_value = ['pingou', 'toshio']
 
         # PoC can change PoC
         user = FakeFasUser()
         user.username = 'ralph'
         pkgdblib.update_pkg_poc(self.session,
-                                 pkg_name='guake',
-                                 pkg_branch='F-18',
-                                 user=user,
-                                 pkg_poc='toshio',
-                                 )
+                                pkg_name='guake',
+                                pkg_branch='F-18',
+                                user=user,
+                                pkg_poc='toshio',
+                                )
 
         pkg_acl = pkgdblib.get_acl_package(self.session, 'guake')
         self.assertEqual(pkg_acl[0].collection.branchname, 'F-18')
@@ -490,16 +502,16 @@ class PkgdbLibtests(Modeltests):
                           )
         self.session.rollback()
 
-        pkgdb.lib.utils.get_packagers = mock.MagicMock()
-        pkgdb.lib.utils.get_packagers.return_value = ['pingou', 'kevin']
+        pkgdb2.lib.utils.get_packagers = mock.MagicMock()
+        pkgdb2.lib.utils.get_packagers.return_value = ['pingou', 'kevin']
 
         # Admin can change PoC
         pkgdblib.update_pkg_poc(self.session,
-                                 pkg_name='guake',
-                                 pkg_branch='F-18',
-                                 user=FakeFasUserAdmin(),
-                                 pkg_poc='kevin',
-                                 )
+                                pkg_name='guake',
+                                pkg_branch='F-18',
+                                user=FakeFasUserAdmin(),
+                                pkg_poc='kevin',
+                                )
 
         pkg_acl = pkgdblib.get_acl_package(self.session, 'guake')
         self.assertEqual(pkg_acl[0].collection.branchname, 'F-18')
@@ -510,11 +522,11 @@ class PkgdbLibtests(Modeltests):
         user = FakeFasUser()
         user.username = 'kevin'
         pkgdblib.update_pkg_poc(self.session,
-                                 pkg_name='guake',
-                                 pkg_branch='F-18',
-                                 user=user,
-                                 pkg_poc='orphan',
-                                 )
+                                pkg_name='guake',
+                                pkg_branch='F-18',
+                                user=user,
+                                pkg_poc='orphan',
+                                )
 
         pkg_acl = pkgdblib.get_acl_package(self.session, 'guake')
         self.assertEqual(pkg_acl[0].collection.branchname, 'F-18')
@@ -524,18 +536,17 @@ class PkgdbLibtests(Modeltests):
 
         # Take orphaned package -> status changed to Approved
         pkgdblib.update_pkg_poc(self.session,
-                                 pkg_name='guake',
-                                 pkg_branch='F-18',
-                                 user=FakeFasUser(),
-                                 pkg_poc=FakeFasUser().username,
-                                 )
+                                pkg_name='guake',
+                                pkg_branch='F-18',
+                                user=FakeFasUser(),
+                                pkg_poc=FakeFasUser().username,
+                                )
 
         pkg_acl = pkgdblib.get_acl_package(self.session, 'guake')
         self.assertEqual(pkg_acl[0].collection.branchname, 'F-18')
         self.assertEqual(pkg_acl[0].package.name, 'guake')
         self.assertEqual(pkg_acl[0].point_of_contact, 'pingou')
         self.assertEqual(pkg_acl[0].status, 'Approved')
-
 
     def test_create_session(self):
         """ Test the create_session function. """
@@ -751,7 +762,6 @@ class PkgdbLibtests(Modeltests):
         self.assertEqual(pkg_acl[1].point_of_contact, 'orphan')
         self.assertEqual(pkg_acl[1].status, 'Orphaned')
 
-
         # Admin can un-orphan package
         pkgdblib.update_pkg_status(self.session,
                                    pkg_name='guake',
@@ -813,10 +823,9 @@ class PkgdbLibtests(Modeltests):
 
         collections = pkgdblib.search_collection(self.session, 'F-*')
         self.assertEqual(len(collections), 2)
-        self.assertEqual("Collection(u'Fedora', u'17', u'Active', u'toshio', "
-                         "publishurltemplate=None, pendingurltemplate=None,"
-                         " summary=u'Fedora 17 release', description=None)",
-                         collections[0].__repr__())
+        self.assertEqual(
+            "Collection(u'Fedora', u'17', u'Active', owner:u'toshio')",
+            collections[0].__repr__())
 
         collections = pkgdblib.search_collection(
             self.session,
@@ -854,13 +863,10 @@ class PkgdbLibtests(Modeltests):
                           clt_name='Fedora',
                           clt_version='19',
                           clt_status='Active',
-                          clt_publishurl=None,
-                          clt_pendingurl=None,
-                          clt_summary='Fedora 19 release',
-                          clt_description='Fedora 19 collection',
                           clt_branchname='F-19',
                           clt_disttag='.fc19',
                           clt_gitbranch='f19',
+                          clt_koji_name='f19',
                           user=FakeFasUser(),
                           )
         self.session.rollback()
@@ -869,22 +875,17 @@ class PkgdbLibtests(Modeltests):
                                 clt_name='Fedora',
                                 clt_version='19',
                                 clt_status='Active',
-                                clt_publishurl=None,
-                                clt_pendingurl=None,
-                                clt_summary='Fedora 19 release',
-                                clt_description='Fedora 19 collection',
                                 clt_branchname='F-19',
                                 clt_disttag='.fc19',
                                 clt_gitbranch='f19',
+                                clt_koji_name='f19',
                                 user=FakeFasUserAdmin(),
                                 )
         self.session.commit()
         collection = pkgdblib.model.Collection.by_name(self.session, 'F-19')
-        self.assertEqual("Collection(u'Fedora', u'19', u'Active', u'admin', "
-                         "publishurltemplate=None, pendingurltemplate=None, "
-                         "summary=u'Fedora 19 release', "
-                         "description=u'Fedora 19 collection')",
-                         collection.__repr__())
+        self.assertEqual(
+            "Collection(u'Fedora', u'19', u'Active', owner:u'admin')",
+            collection.__repr__())
 
     def test_update_collection_status(self):
         """ Test the update_collection_status function. """
@@ -1002,13 +1003,15 @@ class PkgdbLibtests(Modeltests):
 
     def test_has_acls(self):
         """ Test the has_acls function. """
-        self.assertFalse(pkgdblib.has_acls(self.session, 'pingou',
-            'guake', 'devel', 'approveacl'))
+        self.assertFalse(
+            pkgdblib.has_acls(
+                self.session, 'pingou', 'guake', 'devel', 'approveacl'))
 
         create_package_acl(self.session)
 
-        self.assertTrue(pkgdblib.has_acls(self.session, 'pingou',
-            'guake', 'devel', 'commit'))
+        self.assertTrue(
+            pkgdblib.has_acls(
+                self.session, 'pingou', 'guake', 'devel', 'commit'))
 
     def test_get_status(self):
         """ Test the get_status function. """
@@ -1040,16 +1043,17 @@ class PkgdbLibtests(Modeltests):
         """ Test the get_package_maintained function. """
         create_package_acl(self.session)
 
-        pkg = pkgdblib.get_package_maintained(self.session, 'pingou',
-            poc=True)
+        pkg = pkgdblib.get_package_maintained(
+            self.session, 'pingou', poc=True)
         self.assertEqual(len(pkg), 1)
         self.assertEqual(pkg[0][0].name, 'guake')
-        self.assertEqual(pkg[0][1][0].branchname, 'F-18')
-        self.assertEqual(pkg[0][1][1].branchname, 'devel')
+        expected = set(['devel', 'F-18'])
+        branches = set([pkg[0][1][0].branchname, pkg[0][1][1].branchname])
+        self.assertEqual(branches.symmetric_difference(expected), set())
         self.assertEqual(len(pkg[0][1]), 2)
 
-        pkg = pkgdblib.get_package_maintained(self.session, 'pingou',
-            poc=False)
+        pkg = pkgdblib.get_package_maintained(
+            self.session, 'pingou', poc=False)
         self.assertEqual(pkg, [])
 
         pkg = pkgdblib.get_package_maintained(self.session, 'ralph')
@@ -1076,10 +1080,6 @@ class PkgdbLibtests(Modeltests):
             clt_name='Fedora youhou!',
             clt_version='Awesome 18',
             clt_status='EOL',
-            clt_publishurl='http://.....',
-            clt_pendingurl='http://.....',
-            clt_summary='Fedora awesome release 18',
-            clt_description='This is a description of how cool Fedora is',
             clt_branchname='f18_b',
             clt_disttag='fc18',
             clt_gitbranch='F-18',
@@ -1095,13 +1095,51 @@ class PkgdbLibtests(Modeltests):
         self.assertEqual(collection.name, 'Fedora youhou!')
         self.assertEqual(collection.status, 'EOL')
 
+    def test_edit_package(self):
+        """ Test the edit_package function. """
+        create_collection(self.session)
+        create_package(self.session)
+
+        package = pkgdblib.search_package(self.session, 'guake')[0]
+
+        out = pkgdblib.edit_package(
+            self.session, package, user=FakeFasUserAdmin())
+        self.assertEqual(out, None)
+
+        self.assertRaises(pkgdblib.PkgdbException,
+                          pkgdblib.edit_package,
+                          self.session,
+                          package)
+
+        out = pkgdblib.edit_package(
+            self.session,
+            package,
+            pkg_name='Fedora youhou!',
+            pkg_summary='Youhou Fedora is awesome!',
+            pkg_status='Orphaned',
+            pkg_description='this package says how awesome fedora is',
+            pkg_review_url='http://bugzilla.rh.com/42',
+            pkg_upstream_url='https://fedoraproject.org',
+            user=FakeFasUserAdmin(),
+            )
+
+        self.assertEqual(out, 'Package "Fedora youhou!" edited')
+
+        collections = pkgdblib.search_package(self.session, 'guake')
+        self.assertEqual(collections, [])
+
+        package = pkgdblib.search_package(self.session, 'Fedora youhou!')[0]
+        self.assertEqual(package.name, 'Fedora youhou!')
+        self.assertEqual(package.review_url, 'http://bugzilla.rh.com/42')
+        self.assertEqual(package.summary, 'Youhou Fedora is awesome!')
+        self.assertEqual(package.status, 'Orphaned')
+
     def test_get_top_maintainers(self):
         """ Test the get_top_maintainers funtion. """
         create_package_acl(self.session)
 
         top = pkgdblib.get_top_maintainers(self.session)
         self.assertEqual(top, [(u'group::gtk-sig', 1), (u'pingou', 1)])
-
 
     def test_get_top_poc(self):
         """ Test the get_top_poc function. """
@@ -1181,6 +1219,7 @@ class PkgdbLibtests(Modeltests):
                           pkg_user='pingou',
                           user=FakeFasUser()
                           )
+        self.session.rollback()
 
         # Wrong collection
         self.assertRaises(pkgdblib.PkgdbException,
@@ -1191,6 +1230,7 @@ class PkgdbLibtests(Modeltests):
                           pkg_user='pingou',
                           user=FakeFasUser()
                           )
+        self.session.rollback()
 
         # Package is not orphaned
         self.assertRaises(pkgdblib.PkgdbException,
@@ -1201,8 +1241,9 @@ class PkgdbLibtests(Modeltests):
                           pkg_user='pingou',
                           user=FakeFasUser()
                           )
+        self.session.rollback()
 
-        # PKGDB_BUGZILLA_* configuration not set
+        # PKGDB2_BUGZILLA_* configuration not set
         self.assertRaises(pkgdblib.PkgdbException,
                           pkgdblib.unorphan_package,
                           self.session,
@@ -1211,12 +1252,14 @@ class PkgdbLibtests(Modeltests):
                           pkg_user='pingou',
                           user=FakeFasUser()
                           )
+        self.session.rollback()
 
-        if pkgdb.APP.config['PKGDB_BUGZILLA_IN_TESTS']:
-            pkgdb.lib.utils.get_bz_email_user = mock.MagicMock()
-            pkgdb.lib.utils.get_bz_email_user.return_value = FakeFasUser
+        if pkgdb2.APP.config['PKGDB2_BUGZILLA_IN_TESTS']:
+            pkgdb2.lib.utils.get_bz_email_user = mock.MagicMock()
+            pkgdb2.lib.utils.get_bz_email_user.return_value = FakeFasUser
         else:
-            pkgdb.lib.utils._set_bugzilla_owner = mock.MagicMock()
+            pkgdb2.lib.utils.set_bugzilla_owner = mock.MagicMock()
+        self.session.commit()
 
         # Orphan package
         pkgdblib.update_pkg_poc(self.session,
@@ -1225,6 +1268,7 @@ class PkgdbLibtests(Modeltests):
                                 user=FakeFasUserAdmin(),
                                 pkg_poc='orphan',
                                 )
+        self.session.commit()
 
         # User cannot unorphan for someone else
         self.assertRaises(pkgdblib.PkgdbException,
@@ -1235,6 +1279,7 @@ class PkgdbLibtests(Modeltests):
                           pkg_user='ralph',
                           user=FakeFasUser()
                           )
+        self.session.rollback()
 
         # User must be a packager
         user = FakeFasUser()
@@ -1247,6 +1292,7 @@ class PkgdbLibtests(Modeltests):
                           pkg_user='pingou',
                           user=user
                           )
+        self.session.rollback()
 
         pkg_acl = pkgdblib.get_acl_package(self.session, 'guake')
         self.assertEqual(pkg_acl[1].collection.branchname, 'devel')
@@ -1255,12 +1301,13 @@ class PkgdbLibtests(Modeltests):
         self.assertEqual(pkg_acl[1].status, 'Orphaned')
 
         pkgdblib.unorphan_package(
-                          self.session,
-                          pkg_name='guake',
-                          pkg_branch='devel',
-                          pkg_user='pingou',
-                          user=FakeFasUser()
-                          )
+            self.session,
+            pkg_name='guake',
+            pkg_branch='devel',
+            pkg_user='pingou',
+            user=FakeFasUser()
+        )
+        self.session.commit()
 
         pkg_acl = pkgdblib.get_acl_package(self.session, 'guake')
         self.assertEqual(pkg_acl[1].collection.branchname, 'devel')
@@ -1281,18 +1328,14 @@ class PkgdbLibtests(Modeltests):
 
         # Create a new collection
         new_collection = pkgdblib.model.Collection(
-                                  name='Fedora',
-                                  version='19',
-                                  status='Active',
-                                  owner='toshio',
-                                  publishURLTemplate=None,
-                                  pendingURLTemplate=None,
-                                  summary='Fedora 19 release',
-                                  description=None,
-                                  branchname='F-19',
-                                  distTag='.fc19',
-                                  git_branch_name='f19',
-                                  )
+            name='Fedora',
+            version='19',
+            status='Active',
+            owner='toshio',
+            branchname='F-19',
+            distTag='.fc19',
+            git_branch_name='f19',
+        )
         self.session.add(new_collection)
         self.session.commit()
 
@@ -1340,6 +1383,38 @@ class PkgdbLibtests(Modeltests):
         self.assertEqual(len(pkg_acl[1].acls), 4)
         self.assertEqual(pkg_acl[2].collection.branchname, 'F-19')
         self.assertEqual(len(pkg_acl[2].acls), 4)
+
+    def test_get_critpath_packages(self):
+        """ Test the get_critpath_packages method of pkgdblib. """
+        create_package_acl(self.session)
+
+        pkg_list = pkgdblib.get_critpath_packages(self.session)
+        self.assertEqual(pkg_list, [])
+
+        pkg_list = pkgdblib.get_critpath_packages(
+            self.session, branch='devel')
+        self.assertEqual(pkg_list, [])
+
+        create_package_critpath(self.session)
+
+        pkg_list = pkgdblib.get_critpath_packages(self.session)
+        self.assertEqual(len(pkg_list), 2)
+        self.assertEqual(
+            pkg_list[0].point_of_contact, "kernel-maint")
+        self.assertEqual(
+            pkg_list[0].collection.branchname, "F-18")
+        self.assertEqual(
+            pkg_list[1].point_of_contact, "group::kernel-maint")
+        self.assertEqual(
+            pkg_list[1].collection.branchname, "devel")
+
+        pkg_list = pkgdblib.get_critpath_packages(
+            self.session, branch='devel')
+        self.assertEqual(len(pkg_list), 1)
+        self.assertEqual(
+            pkg_list[0].point_of_contact, "group::kernel-maint")
+        self.assertEqual(
+            pkg_list[0].collection.branchname, "devel")
 
 
 if __name__ == '__main__':
